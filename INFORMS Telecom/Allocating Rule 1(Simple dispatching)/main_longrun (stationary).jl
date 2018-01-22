@@ -1,3 +1,4 @@
+cd(dirname(Base.source_path()))
 using Distributions, PyPlot, JuMP, Ipopt
 
 include("./Types (stationary).jl")
