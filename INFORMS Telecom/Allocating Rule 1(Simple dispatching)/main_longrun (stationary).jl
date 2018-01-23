@@ -12,7 +12,7 @@ const WARM_UP_TIME = 0.3*REPLICATION_TIME
 const REGULAR_UPDATE_INTERVAL = 0.01
 
 # main part #
-
+println(1 < 2)
 # Initialization
 file_sim_record = open("sim_record.txt" , "w")
 file_summarization = open("summarization.txt" , "w")

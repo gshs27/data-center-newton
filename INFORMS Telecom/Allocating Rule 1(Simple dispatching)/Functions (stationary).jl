@@ -71,8 +71,8 @@ function next_event(vdc::VirtualDataCenter, PI::Plot_Information)
 
       # 스피드 업데이트
       vdc.S[j].previous_speed = vdc.S[j].current_speed
-      vdc.S[j].current_speed = (vdc.S[j].previous_speed) + ((1/server_power_2nd_diff(j, vdc.SS, vdc.S))*(x_dot(j, vdc.SS, vdc.S)))
-      #vdc.S[j].current_speed = vdc.S[j].κ + vdc.S[j].current_remaining_workload
+      #vdc.S[j].current_speed = (vdc.S[j].previous_speed) + ((1/server_power_2nd_diff(j, vdc.SS, vdc.S))*(x_dot(j, vdc.SS, vdc.S)))
+      vdc.S[j].current_speed = vdc.S[j].κ + vdc.S[j].current_remaining_workload
 
       # price 업데이트
       vdc.S[j].previous_price = vdc.S[j].current_price
@@ -106,24 +106,53 @@ function next_event(vdc::VirtualDataCenter, PI::Plot_Information)
   elseif vdc.next_arrival == min(vdc.next_regular_update, vdc.next_arrival, vdc.next_completion)
     inter_event_time = vdc.next_arrival - vdc.current_time   # 지난이벤트와 지금이벤트의 시간간격을 저장
     vdc.current_time = vdc.next_arrival                      # 시뮬레이터의 현재 시간을 바꿈
-    println(PI.file_sim_record,"(Time: $(vdc.current_time)) Current event: New arrival ($(vdc.AI[1].arrival_index)th arrival, app_type: $(vdc.AI[1].app_type), workload: $(vdc.AI[1].remaining_workload), server_dispatched: $(find_min_price_server(vdc.AI[1].app_type, vdc.SS, vdc.S))")
+#    println(PI.file_sim_record,"(Time: $(vdc.current_time)) Current event: New arrival ($(vdc.AI[1].arrival_index)th arrival, app_type: $(vdc.AI[1].app_type), workload: $(vdc.AI[1].remaining_workload), server_dispatched: $(find_min_price_server(vdc.AI[1].app_type, vdc.SS, vdc.S))")
 
     # Routing job and Workload increment
-    server_index = find_min_price_server(vdc.AI[1].app_type, vdc.SS, vdc.S)    # 일감의 type과 현재 서버들의 price를 기반으로  routing할 서버를 결정
-    #=
+    #server_index = find_min_price_server(vdc.AI[1].app_type, vdc.SS, vdc.S)    # 일감의 type과 현재 서버들의 price를 기반으로  routing할 서버를 결정
+
     server_index = 0
     temp1 = typemax(Float64)
+#    println("(Time: $(vdc.current_time)) Current event: New arrival ($(vdc.AI[1].arrival_index)th arrival, app_type: $(vdc.AI[1].app_type), workload: $(vdc.AI[1].remaining_workload), server_dispatched: $(find_min_price_server(vdc.AI[1].app_type, vdc.SS, vdc.S))")
+    price_temp = typemax(Float64)
+    max_case_index = 0
     for j in 1:length(vdc.S)
+#      println("at start of j = ", j, " temp1 = ", temp1)
       if in(AI[1].app_type, SS[j].Apps) == true
-        temp2 = (vdc.SS[j].K + vdc.SS[j].α*((vdc.S[j].previous_speed + vdc.AI[1].remaining_workload)^vdc.SS[j].n)) - (vdc.SS[j].K + vdc.SS[j].α*((vdc.S[j].previous_speed)^vdc.SS[j].n))
-  #      if temp2 < temp1 && vdc.S[j].previous_speed + vdc.AI[1].remaining_workload <= vdc.SS[j].Γ
-        if temp2 < temp1
+        #temp2 = vdc.SS[j].α*(((vdc.S[j].current_speed + vdc.AI[1].remaining_workload)^vdc.SS[j].n) - ((vdc.S[j].current_speed)^vdc.SS[j].n))
+        temp3 = vdc.S[j].current_speed
+#       if temp2 < temp1 && vdc.S[j].previous_speed + vdc.AI[1].remaining_workload <= vdc.SS[j].Γ
+        if vdc.SS[j].K + vdc.SS[j].α*((SS[j].Γ)^vdc.SS[j].n) < price_temp
+          max_case_index = j
+        end
+        #=
+        println("temp2 = ", temp2)
+        println("temp2 < temp1 ? ", temp2 < temp1)
+        println("current speed of server j = ", vdc.S[j].current_speed)
+        println("arriving workload = ", vdc.AI[1].remaining_workload)
+        println("their sum = ", (vdc.S[j].current_speed + vdc.AI[1].remaining_workload))
+        println("Γ[$j] = ", SS[j].Γ)
+        =#
+        #=
+        if temp2 < temp1 && (vdc.S[j].current_speed + vdc.AI[1].remaining_workload) < SS[j].Γ
           temp1 = temp2
           server_index = j
         end
+        =#
+        if temp3 < temp1 && (vdc.S[j].current_speed + vdc.AI[1].remaining_workload) < SS[j].Γ
+          temp1 = temp3
+          server_index = j
+        end
       end
+#      println("at the end of j = ", j, " temp1 = ", temp1)
     end
-    =#
+
+    if server_index == 0
+      server_index = max_case_index
+    end
+
+#    println("server_index = ", server_index)
+    println(PI.file_sim_record,"(Time: $(vdc.current_time)) Current event: New arrival ($(vdc.AI[1].arrival_index)th arrival, app_type: $(vdc.AI[1].app_type), workload: $(vdc.AI[1].remaining_workload), server_dispatched: $(server_index)")
     vdc.S[server_index].previous_remaining_workload = vdc.S[server_index].current_remaining_workload  # 기존 remaining_workload 저장
     vdc.S[server_index].current_remaining_workload = vdc.S[server_index].previous_remaining_workload + vdc.AI[1].remaining_workload # 현재 remaining_workload에 arriving workload 추가
 
@@ -139,8 +168,8 @@ function next_event(vdc::VirtualDataCenter, PI::Plot_Information)
       vdc.total_cumulative_power_consumption += consumption
       # 스피드 업데이트
       vdc.S[j].previous_speed = vdc.S[j].current_speed
-      vdc.S[j].current_speed = vdc.S[j].previous_speed + (1/server_power_2nd_diff(j, vdc.SS, vdc.S))*(x_dot(j, vdc.SS, vdc.S))
-#      vdc.S[j].current_speed = vdc.S[j].κ + vdc.S[j].current_remaining_workload
+      #vdc.S[j].current_speed = vdc.S[j].previous_speed + (1/server_power_2nd_diff(j, vdc.SS, vdc.S))*(x_dot(j, vdc.SS, vdc.S))
+      vdc.S[j].current_speed = vdc.S[j].κ + vdc.S[j].current_remaining_workload
 
       # price 업데이트
       vdc.S[j].previous_price = vdc.S[j].current_price
@@ -173,7 +202,7 @@ function next_event(vdc::VirtualDataCenter, PI::Plot_Information)
     WIP_index = vdc.next_completion_info["WIP_num"]
     inter_event_time = vdc.next_completion - vdc.current_time
     vdc.current_time = vdc.next_completion
-    println(PI.file_sim_record,"(Time: $(vdc.current_time)) Current event: Completion ($(vdc.passed_arrivals+1)th, server: $server_index , server $server_index's remaining WIPs: $(length(vdc.S[server_index].WIP))")
+    println(PI.file_sim_record,"(Time: $(vdc.current_time)) Current event: Completion ($(vdc.passed_arrivals+1)th, server: $server_index , server $server_index's remaining WIPs: $(length(vdc.S[server_index].WIP)-1)")
 
     # for summarizing
     if vdc.warmed_up == true
@@ -200,8 +229,8 @@ function next_event(vdc::VirtualDataCenter, PI::Plot_Information)
       vdc.total_cumulative_power_consumption += consumption
       # 스피드 업데이트
       vdc.S[j].previous_speed = vdc.S[j].current_speed
-      vdc.S[j].current_speed = vdc.S[j].previous_speed + (1/server_power_2nd_diff(j, vdc.SS, vdc.S))*x_dot(j, vdc.SS, vdc.S)
-      #vdc.S[j].current_speed = vdc.S[j].κ + vdc.S[j].current_remaining_workload
+      #vdc.S[j].current_speed = vdc.S[j].previous_speed + (1/server_power_2nd_diff(j, vdc.SS, vdc.S))*x_dot(j, vdc.SS, vdc.S)
+      vdc.S[j].current_speed = vdc.S[j].κ + vdc.S[j].current_remaining_workload
       # price 업데이트
       vdc.S[j].previous_price = vdc.S[j].current_price
       vdc.S[j].current_price = vdc.S[j].previous_price + p_dot(j, vdc.S)
